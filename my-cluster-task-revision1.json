@@ -38,7 +38,6 @@
         }
     ],
     "cpu": "1024",
-    "enableFaultInjection": false,
     "executionRoleArn": "arn:aws:iam::757389288367:role/ecsTaskExecutionRole",
     "family": "my-cluster-task",
     "memory": "3072",
