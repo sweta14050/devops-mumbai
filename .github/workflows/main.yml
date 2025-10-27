@@ -1,94 +1,59 @@
-name: Build and Push to ECR
+name: Build and Deploy to ECS
  
 on:
-
-
   push:
-
-
     branches: [ main ]
  
 jobs:
-
-
-  build-and-push:
-
-
+  build-and-deploy:
     runs-on: ubuntu-latest
  
     steps:
-
-
       - name: Checkout code
-
-
         uses: actions/checkout@v3
  
       - name: Set up JDK
-
-
         uses: actions/setup-java@v3
-
-
         with:
-
-
           java-version: '17'
-
-
           distribution: 'temurin'
  
       - name: Build WAR with Maven
-
-
         run: mvn clean package
- 
       - name: Configure AWS credentials
-
-
         uses: aws-actions/configure-aws-credentials@v4
-
-
         with:
-
-
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-
-
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-
-
           aws-region: ${{ secrets.AWS_REGION }}
  
       - name: Login to Amazon ECR
-
-
         id: login-ecr
-
-
         uses: aws-actions/amazon-ecr-login@v2
  
       - name: Build, tag, and push Docker image
-
-
+        id: build-image
         env:
-
-
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-
-
           IMAGE_TAG: latest
-
-
           REPOSITORY: new-repo
-
-
         run: |
-
-
           docker build -t $ECR_REGISTRY/$REPOSITORY:$IMAGE_TAG .
-
-
           docker push $ECR_REGISTRY/$REPOSITORY:$IMAGE_TAG
-
+          echo "image=$ECR_REGISTRY/$REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
  
+      - name: Render ECS task definition
+        id: render-task
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        with:
+          task-definition: my-cluster-task-revision1.json
+          container-name: ${{ secrets.CONTAINER_NAME }}
+          image: ${{ steps.build-image.outputs.image }}
+ 
+      - name: Deploy to ECS
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v1
+        with:
+          task-definition: ${{ steps.render-task.outputs.task-definition }}
+          service: ${{ secrets.ECS_SERVICE }}
+          cluster: my-cluster
+          wait-for-service-stability: true
